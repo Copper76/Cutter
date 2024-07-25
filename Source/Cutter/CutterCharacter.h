@@ -9,7 +9,6 @@
 
 class UProceduralMeshComponent;
 
-
 UCLASS(config=Game)
 class ACutterCharacter : public ACharacter
 {
@@ -51,6 +50,9 @@ class ACutterCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* ToggleCutAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Tiemline, meta = (AllowPrivateAccess = "true"))
+	UCurveFloat* m_CameraMoveCurve;
+
 public:
 	ACutterCharacter();
 	
@@ -76,8 +78,20 @@ protected:
 
 	UProceduralMeshComponent* ActivatePhysics(UProceduralMeshComponent* proceduralMeshComponent, UStaticMeshComponent* staticMeshComponent);
 
+	void Tick(float deltaTime) override;
+
 private:
 	bool m_IsCuttingMode = false;
+
+	float m_CameraMoveTime = 0.0f;
+
+	float m_CameraTargetArmLength;
+
+	float m_CameraStartArmLength;
+
+	FVector m_CameraTargetOffset;
+
+	FVector m_CameraStartOffset;
 
 protected:
 	// APawn interface

@@ -58,6 +58,8 @@ ACutterCharacter::ACutterCharacter()
 	CuttingPlane->SetVisibility(false);
 	CuttingPlane->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	m_CameraTargetArmLength = 400.0f;
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
@@ -174,6 +176,7 @@ void ACutterCharacter::Cut(const FInputActionValue& Value)
 	FVector bbox = CuttingPlane->GetStaticMesh()->GetBoundingBox().GetExtent();
 	bbox.Z = 1.0f;
 
+	//Get all the intersecting objects
 	if (GetWorld()->OverlapMultiByObjectType(OverlapResults, CuttingPlane->GetComponentLocation(), FQuat(CuttingPlane->GetComponentRotation()), FCollisionObjectQueryParams::AllDynamicObjects,
 		FCollisionShape::MakeBox(bbox * CuttingPlane->GetRelativeScale3D()), QueryParams))
 	{
@@ -196,10 +199,6 @@ void ACutterCharacter::Cut(const FInputActionValue& Value)
 
 			proceduralMesh->AddImpulse(CuttingPlane->GetUpVector() * 500.0f, FName(), true);
 
-			//AActor* NewActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), OtherHalf->GetComponentLocation(), OtherHalf->GetComponentRotation());
-			//OtherHalf->Rename(*OtherHalf->GetName(), NewActor);//In order to have multiple actors
-			//NewActor->SetRootComponent(OtherHalf);
-
 			OtherHalf->SetSimulatePhysics(true);
 			OtherHalf->SetGenerateOverlapEvents(false);
 			OtherHalf->AddImpulse(CuttingPlane->GetUpVector() * 500.0f * -1.0f, FName(), true);
@@ -216,8 +215,9 @@ void ACutterCharacter::ToggleCut(const FInputActionValue& Value)
 	if (m_IsCuttingMode)
 	{
 		controller->SetControlRotation(FRotator(-10.0f, GetActorRotation().Yaw, 0.0f));
-		CameraBoom->TargetArmLength = 100.0f;
-		CameraBoom->SetRelativeLocation(FVector(0.0f, 30.0f, 80.0f));
+		m_CameraTargetArmLength = 100.0f;
+		m_CameraTargetOffset = FVector(FVector(0.0f, 30.0f, 80.0f));
+		m_CameraMoveTime = (400.0f - CameraBoom->TargetArmLength) / 300.0f;
 		CuttingPlane->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
 		CuttingPlane->SetActive(true);
 		CuttingPlane->SetVisibility(true);
@@ -227,10 +227,13 @@ void ACutterCharacter::ToggleCut(const FInputActionValue& Value)
 	{
 		CuttingPlane->SetActive(false);
 		CuttingPlane->SetVisibility(false);
-		CameraBoom->TargetArmLength = 400.0f;
-		CameraBoom->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
+		m_CameraTargetArmLength = 400.0f;
+		m_CameraMoveTime = (CameraBoom->TargetArmLength - 100.0f) / 300.0f;
+		m_CameraTargetOffset = FVector(0.0f, 0.0f, 0.0f);
 		UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
 	}
+	m_CameraStartArmLength = CameraBoom->TargetArmLength;
+	m_CameraStartOffset = CameraBoom->GetRelativeLocation();
 }
 
 UProceduralMeshComponent* ACutterCharacter::StaticToProceduralMesh(UStaticMeshComponent* staticMeshComponent, AActor* owner)
@@ -360,4 +363,14 @@ UProceduralMeshComponent* ACutterCharacter::ActivatePhysics(UProceduralMeshCompo
 	proceduralMeshComponent->SetPhysicsAngularVelocityInRadians(staticMeshComponent->GetPhysicsAngularVelocityInRadians());
 
 	return proceduralMeshComponent;
+}
+
+void ACutterCharacter::Tick(float deltaTime)
+{
+	if (CameraBoom->TargetArmLength != m_CameraTargetArmLength)
+	{
+		m_CameraMoveTime += m_IsCuttingMode ? deltaTime * 10.0f : deltaTime;
+		CameraBoom->TargetArmLength = FMath::Lerp(m_CameraStartArmLength, m_CameraTargetArmLength, m_CameraMoveCurve->GetFloatValue(m_CameraMoveTime));
+		CameraBoom->SetRelativeLocation(FMath::Lerp(m_CameraStartOffset, m_CameraTargetOffset, m_CameraMoveCurve->GetFloatValue(m_CameraMoveTime)));
+	}
 }
